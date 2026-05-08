@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON CHESS</title>
+    <!-- Tailwind CSSの読み込み -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fontsの読み込み (サイバー調のフォント) -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --cyan-glow: 0 0 10px rgba(34, 211, 238, 0.8), 0 0 20px rgba(34, 211, 238, 0.5);
+            --magenta-glow: 0 0 10px rgba(217, 70, 239, 0.8), 0 0 20px rgba(217, 70, 239, 0.5);
+        }
+        
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #050510;
+            background-image: 
+                linear-gradient(rgba(15, 23, 42, 0.8) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 23, 42, 0.8) 1px, transparent 1px);
+            background-size: 40px 40px;
+            overflow-x: hidden;
+        }
+
+        .font-cyber {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* 盤面のスタイル */
+        .board-container {
+            box-shadow: 0 0 30px rgba(34, 211, 238, 0.15), inset 0 0 20px rgba(217, 70, 239, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .square {
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        /* 駒のスタイル */
+        .piece {
+            font-size: clamp(24px, 6vw, 42px);
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            line-height: 1;
+        }
+        
+        .piece:hover {
+            transform: scale(1.15);
+        }
+
+        /* プレイヤーごとのネオン効果 */
+        .piece-cyan {
+            color: #22d3ee;
+            text-shadow: var(--cyan-glow);
+        }
+
+        .piece-magenta {
+            color: #d946ef;
+            text-shadow: var(--magenta-glow);
+        }
+
+        /* 選択中のマス */
+        .square-selected {
+            background-color: rgba(234, 179, 8, 0.3) !important;
+            box-shadow: inset 0 0 15px rgba(234, 179, 8, 0.8);
+        }
+
+        /* 移動可能なマスへのマーカー */
+        .valid-move-dot {
+            width: 25%;
+            height: 25%;
+            border-radius: 50%;
+            background-color: rgba(74, 222, 128, 0.7);
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.9);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: pulse 1.5s infinite;
+        }
+
+        /* 敵の駒がある移動可能マス（攻撃範囲） */
+        .valid-capture {
+            box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.6) !important;
+        }
+
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.7; }
+            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.7; }
+        }
+
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen flex flex-col items-center justify-center p-4">
+    
+    <div class="crt-overlay"></div>
+
+    <div class="w-full max-w-2xl mx-auto flex flex-col items-center relative z-10">
+        <!-- ヘッダー -->
+        <div class="text-center mb-6">
+            <h1 class="text-4xl md:text-6xl font-black font-cyber mb-2 tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-purple-500 to-fuchsia-500 drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                NEON CHESS
+            </h1>
+            <div id="status-display" class="text-xl md:text-2xl font-bold font-cyber tracking-widest text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] transition-colors duration-300">
+                CYAN'S TURN
+            </div>
+        </div>
+
+        <!-- ゲームボード -->
+        <div id="board" class="board-container w-full aspect-square grid grid-cols-8 grid-rows-8 border border-cyan-500/30 rounded-lg overflow-hidden shadow-2xl bg-gray-900/80">
+            <!-- JavaScriptでマスと駒を生成 -->
+        </div>
+
+        <!-- コントロールパネル -->
+        <div class="mt-8 flex gap-4">
+            <button onclick="initGame()" class="px-6 py-2 bg-transparent border-2 border-cyan-500 text-cyan-400 font-cyber font-bold rounded hover:bg-cyan-500 hover:text-black transition-all shadow-[0_0_10px_rgba(34,211,238,0.3)] hover:shadow-[0_0_20px_rgba(34,211,238,0.8)]">
+                SYSTEM REBOOT
+            </button>
+        </div>
+        
+        <!-- ルール説明 -->
+        <div class="mt-8 text-gray-400 text-sm text-center max-w-md">
+            <p>※ 相手のキング(♚)を先に破壊（キャプチャ）した方が勝利です。</p>
+            <p>※ ポーンは最奥に到達するとクイーン(♛)に昇格します。</p>
+        </div>
+    </div>
+
+    <script>
+        // --- ゲーム状態管理 ---
+        const initialBoard = [
+            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+        ];
+
+        // 駒のUnicode文字（すべて黒塗りのシルエットを使用し、CSSで色を付ける）
+        const pieceSymbols = {
+            'K': '♚', 'Q': '♛', 'R': '♜', 'B': '♝', 'N': '♞', 'P': '♟', // Cyan (White)
+            'k': '♚', 'q': '♛', 'r': '♜', 'b': '♝', 'n': '♞', 'p': '♟'  // Magenta (Black)
+        };
+
+        let board = [];
+        let turn = 'cyan'; // 'cyan' or 'magenta'
+        let selectedCell = null; // {r, c}
+        let validMoves = []; // [{r, c}]
+        let gameOver = false;
+
+        const boardElement = document.getElementById('board');
+        const statusElement = document.getElementById('status-display');
+
+        // --- 初期化 ---
+        function initGame() {
+            board = JSON.parse(JSON.stringify(initialBoard));
+            turn = 'cyan';
+            selectedCell = null;
+            validMoves = [];
+            gameOver = false;
+            updateStatusDisplay();
+            renderBoard();
+        }
+
+        // --- 描画ロジック ---
+        function renderBoard() {
+            boardElement.innerHTML = '';
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const square = document.createElement('div');
+                    
+                    // マスの色（市松模様）
+                    const isDark = (r + c) % 2 === 1;
+                    square.className = `square flex justify-center items-center ${isDark ? 'bg-slate-800/80' : 'bg-slate-700/60'}`;
+                    
+                    // 選択状態のハイライト
+                    if (selectedCell && selectedCell.r === r && selectedCell.c === c) {
+                        square.classList.add('square-selected');
+                    }
+
+                    // 移動可能マスのハイライト
+                    const moveMatch = validMoves.find(m => m.r === r && m.c === c);
+                    if (moveMatch) {
+                        const targetPiece = board[r][c];
+                        if (targetPiece) {
+                            // 敵の駒がある場合
+                            square.classList.add('valid-capture');
+                        } else {
+                            // 空のマスの場合
+                            const dot = document.createElement('div');
+                            dot.className = 'valid-move-dot';
+                            square.appendChild(dot);
+                        }
+                    }
+
+                    // 駒の描画
+                    const pieceChar = board[r][c];
+                    if (pieceChar) {
+                        const isCyan = pieceChar === pieceChar.toUpperCase();
+                        const pieceSpan = document.createElement('span');
+                        pieceSpan.textContent = pieceSymbols[pieceChar];
+                        pieceSpan.className = `piece ${isCyan ? 'piece-cyan' : 'piece-magenta'}`;
+                        square.appendChild(pieceSpan);
+                    }
+
+                    // クリックイベント
+                    square.onclick = () => handleSquareClick(r, c);
+
+                    boardElement.appendChild(square);
+                }
+            }
+        }
+
+        function updateStatusDisplay() {
+            if (gameOver) return; // ゲームオーバー時は別の処理で上書きされる
+            
+            if (turn === 'cyan') {
+                statusElement.textContent = "CYAN'S TURN";
+                statusElement.className = "text-xl md:text-2xl font-bold font-cyber tracking-widest text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] transition-colors duration-300";
+            } else {
+                statusElement.textContent = "MAGENTA'S TURN";
+                statusElement.className = "text-xl md:text-2xl font-bold font-cyber tracking-widest text-fuchsia-500 drop-shadow-[0_0_8px_rgba(217,70,239,0.8)] transition-colors duration-300";
+            }
+        }
+
+        // --- クリック処理 ---
+        function handleSquareClick(r, c) {
+            if (gameOver) return;
+
+            const pieceChar = board[r][c];
+            const isCyanPiece = pieceChar && pieceChar === pieceChar.toUpperCase();
+            const isMagentaPiece = pieceChar && pieceChar === pieceChar.toLowerCase();
+            const isOwnPiece = (turn === 'cyan' && isCyanPiece) || (turn === 'magenta' && isMagentaPiece);
+
+            // 既に駒を選択中の場合
+            if (selectedCell) {
+                // クリックした場所が移動可能リストに含まれているか
+                const isValidMove = validMoves.some(m => m.r === r && m.c === c);
+                
+                if (isValidMove) {
+                    executeMove(selectedCell.r, selectedCell.c, r, c);
+                    return;
+                }
+                
+                // 自分の別の駒をクリックした場合は選択を切り替え
+                if (isOwnPiece) {
+                    selectedCell = { r, c };
+                    validMoves = calculateValidMoves(r, c);
+                    renderBoard();
+                    return;
+                }
+
+                // 関係ない場所をクリックしたら選択解除
+                selectedCell = null;
+                validMoves = [];
+                renderBoard();
+
+            } else {
+                // 駒が未選択の場合、自分の駒なら選択
+                if (isOwnPiece) {
+                    selectedCell = { r, c };
+                    validMoves = calculateValidMoves(r, c);
+                    renderBoard();
+                }
+            }
+        }
+
+        // --- 移動処理 ---
+        function executeMove(fromR, fromC, toR, toC) {
+            const movingPiece = board[fromR][fromC];
+            const targetPiece = board[toR][toC];
+
+            // キングを倒したか判定（ゲーム終了判定）
+            if (targetPiece.toLowerCase() === 'k') {
+                gameOver = true;
+                const winnerText = turn === 'cyan' ? 'CYAN WINS' : 'MAGENTA WINS';
+                const winnerColor = turn === 'cyan' ? 'text-cyan-400' : 'text-fuchsia-500';
+                statusElement.textContent = `SYSTEM OVERRIDE: ${winnerText}`;
+                statusElement.className = `text-2xl md:text-4xl font-bold font-cyber tracking-widest ${winnerColor} drop-shadow-[0_0_15px_currentColor] transition-colors duration-300 animate-pulse`;
+            }
+
+            // 駒を移動
+            board[toR][toC] = movingPiece;
+            board[fromR][fromC] = '';
+
+            // プロモーション（ポーンが端に到達したらクイーンに）
+            if (movingPiece.toLowerCase() === 'p') {
+                if ((turn === 'cyan' && toR === 0) || (turn === 'magenta' && toR === 7)) {
+                    board[toR][toC] = turn === 'cyan' ? 'Q' : 'q';
+                }
+            }
+
+            // ターン交代と状態リセット
+            if (!gameOver) {
+                turn = turn === 'cyan' ? 'magenta' : 'cyan';
+                updateStatusDisplay();
+            }
+            
+            selectedCell = null;
+            validMoves = [];
+            renderBoard();
+        }
+
+        // --- 移動可能ロジック計算 ---
+        function calculateValidMoves(r, c) {
+            const piece = board[r][c];
+            if (!piece) return [];
+            
+            const isCyan = piece === piece.toUpperCase();
+            const type = piece.toLowerCase();
+            const moves = [];
+
+            // マスが盤面内か、かつ味方の駒がないかを判定
+            function addIfValid(nr, nc) {
+                if (nr < 0 || nr > 7 || nc < 0 || nc > 7) return false; // 盤外
+                const target = board[nr][nc];
+                if (!target) {
+                    moves.push({r: nr, c: nc});
+                    return true; // 空きマスならその先も探索可能（スライド移動用）
+                }
+                const targetIsCyan = target === target.toUpperCase();
+                if (isCyan !== targetIsCyan) {
+                    moves.push({r: nr, c: nc}); // 敵の駒なら攻撃可能
+                }
+                return false; // 駒があったらそこで探索停止
+            }
+
+            // 直線・斜め移動用のループ処理
+            function slide(directions) {
+                for (let [dr, dc] of directions) {
+                    let nr = r + dr, nc = c + dc;
+                    while (addIfValid(nr, nc)) {
+                        nr += dr; nc += dc;
+                    }
+                }
+            }
+
+            const orthogonals = [[-1,0],[1,0],[0,-1],[0,1]];
+            const diagonals = [[-1,-1],[-1,1],[1,-1],[1,1]];
+
+            switch (type) {
+                case 'r': // ルーク
+                    slide(orthogonals);
+                    break;
+                case 'b': // ビショップ
+                    slide(diagonals);
+                    break;
+                case 'q': // クイーン
+                    slide([...orthogonals, ...diagonals]);
+                    break;
+                case 'k': // キング
+                    [...orthogonals, ...diagonals].forEach(([dr, dc]) => addIfValid(r+dr, c+dc));
+                    break;
+                case 'n': // ナイト (L字)
+                    const knightMoves = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+                    knightMoves.forEach(([dr, dc]) => addIfValid(r+dr, c+dc));
+                    break;
+                case 'p': // ポーン
+                    const dir = isCyan ? -1 : 1; // シアン(白)は上へ、マゼンタ(黒)は下へ
+                    const startRow = isCyan ? 6 : 1;
+                    
+                    // 前進 (1マス)
+                    if (r + dir >= 0 && r + dir <= 7 && !board[r + dir][c]) {
+                        moves.push({r: r + dir, c: c});
+                        // 最初の移動のみ2マス前進可能
+                        if (r === startRow && !board[r + dir * 2][c]) {
+                            moves.push({r: r + dir * 2, c: c});
+                        }
+                    }
+                    // 斜め攻撃
+                    for (let dc of [-1, 1]) {
+                        const nc = c + dc;
+                        if (r + dir >= 0 && r + dir <= 7 && nc >= 0 && nc <= 7) {
+                            const target = board[r + dir][nc];
+                            if (target) {
+                                const targetIsCyan = target === target.toUpperCase();
+                                if (isCyan !== targetIsCyan) {
+                                    moves.push({r: r + dir, c: nc});
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+            return moves;
+        }
+
+        // ゲーム開始
+        initGame();
+    </script>
+</body>
+</html>
